@@ -1,0 +1,13 @@
+name: Projects
+source:
+  - icon: fa fa-signal
+    description: Exploratory Data Analysis
+
+  - icon: fa fa-line-chart
+    description: Modeling, Testing, and Predicting
+    
+#  - icon: fa fa-pie-chart
+#    description: Other
+   
+#  - icon: fa fa-tasks
+#    description: Other 

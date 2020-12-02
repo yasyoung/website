@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1606871311405.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "8BCBC38",
+    "lastKnownWriteTime" : 1606871386,
+    "last_content_update" : 1606871386990,
+    "path" : "~/Desktop/website/content/post/2020-12-01-project1/index.Rmd",
+    "project_path" : "content/post/2020-12-01-project1/index.Rmd",
+    "properties" : {
+        "cursorPosition" : "12,0",
+        "scrollLine" : "0"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 5,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

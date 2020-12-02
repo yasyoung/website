@@ -1,0 +1,334 @@
+---
+title: "SDS 348 Project 2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Yasmine Young, yly72
+
+## Introduction
+The "facebook_fact_check.csv" or "fbrawdata" dataset contains the numbers of social media interactions on fact-checked news articles published by a variety sources. The variables are as follows: Category (left, right, mainstream), Page (Politico, CNN Politics, Eagle Rising, Right Wing News, Occupy Democrats, ABC News Politics, other), Rating (mixture of true and false, no factual content, mostly true, mostly false), share_count (numeric), reaction_count (numeric), and comment_count (numeric). The numeric variables calculate the number of shares, reactions, and comments that each post had when it was scraped. There are 2212 observations. 
+
+The variables "Debate", "Post Type", "Date Published", "Account ID", and "Post URL" were removed from the dataset as they would not be used in the analysis. NAs were removed from the dataset.
+
+## Importing the dataset and relevant packages
+```{r}
+library(tidyverse)
+library(psych)
+library(rstatix)
+library(sandwich)
+library(lmtest) 
+library(plotROC) 
+library(glmnet)
+```
+
+```{R}
+facebook_fact_check <- read_csv("facebook-fact-check.csv")
+fbrawdata <- facebook_fact_check %>% select(-Debate, -`Post Type`, -`Date Published`, -account_id, -`Post URL`) %>% na.omit
+fbrawdata %>% nrow()
+```
+## Testing MANOVA Assumptions 
+
+*The test for multivariate normality was not met for each Rating group (p = 5.747507e-31, p = 2.183753e-13, p =1.03277e-65, p = 4.871012e-32). Since the multivariate normality assumption was not met, the homogeneity of covariance matrices test was not performed.*
+```{r}
+group <- fbrawdata$Rating 
+DVs <- fbrawdata %>% select(comment_count,reaction_count,share_count)
+
+#Test multivariate normality for each group (null: assumption met)
+sapply(split(DVs,group), mshapiro_test)
+```
+
+## MANOVA Testing for Mean Difference Across Rating Groups
+
+*A MANOVA test was performed to determine whether the numeric variables (share_count, reaction_count, and comment_count show a significant mean difference across the levels of the chosen categorical variable - Rating. Significant differences were found among the four rating categories for at least one of the dependent variables (P illai trace = .1057, pseudo F (9, 6624) = 26.878, p = 2.2e-16.)*
+
+*Univariate ANOVAs for each dependent variable (share_count, reaction_count, and comment_count) were conducted as follow-up tests to the MANOVA, using the Bonferroni method for controlling Type I error rates for multiple comparisons. The probability of at least one type I error is 0.6764665, while the bonferroni correction is 0.00227. The univariate ANOVAs for each dependent variable show that there is a signiciant mean difference across groups. For share_count, reaction_count, and comment_count at least one rating differs. The univariate ANOVAs for share_count,reaction_count, and comment_count were also significant, F (3, 2208) = 25.809 , p = 2.2e-16, F (3, 2208) = 68.87, p =2.2e-16, and F (3, 2208) = 9.4398, p =3.385e-06, respectively.*
+
+*There were 22 tests performed (1 MANOVA, 3 ANOVA, and 18 Pairwise t-tests). Post hoc analysis was performed conducting pairwise comparisons to determine which Rating differed in share_count, reaction_count, and comment_count. All four Ratings were found to differ significantly from each other in terms of the numeric variables after adjusting for multiple comparisons (bonferroni α = .05/22 = 0.00227).*
+
+
+```{r}
+man1 <- manova(cbind(share_count, reaction_count, comment_count) ~ Rating, data = fbrawdata)
+summary(man1)
+
+summary.aov(man1)
+
+pairwise.t.test(fbrawdata$share_count, fbrawdata$Rating, p.adj = "none")
+
+pairwise.t.test(fbrawdata$reaction_count, fbrawdata$Rating, p.adj = "none")
+
+pairwise.t.test(fbrawdata$comment_count, fbrawdata$Rating, p.adj = "none")
+
+# prob of type 1
+(1 - 0.95^22)
+
+# bonferroni correction
+0.05/(22)
+
+```
+
+
+
+## Randomization Tests: Mean Difference
+
+*Mean Difference Randomization tests  (5000 iterations) were run on `reaction_count`. The "new" dataset was mutated to contain "fact_predict" - a binary predictor where if the Rating were "no factual content" it was dummy encoded as "1". All other ratings were dummy encoded as "0".*
+
+*Null hypothesis: There is no difference between the reaction_count means of those posts that contained "no factual content" (1) and some level of factual content (mostly true, mostly false, mixture, 0). Alternative hypothesis: There is a significant difference between the reaction_count means of those posts that contained "no factual content" and some level of factual content (mostly true, mostly false, mixture). The 95% CI is 12708.97 and 24050.49. Since the CI does not contain zero, we can reject the null hypothesis and state that there is a difference in reaction count between posts that contain no factual content and some level of factual content.*
+```{r}
+rand_dist<-vector()
+
+for(i in 1:5000){ 
+new<- fbrawdata[sample(1:nrow(fbrawdata), replace = T),] %>% mutate(fact_predict = ifelse(Rating == "no factual content",'1','0'))
+rand_dist[i]<-mean(new[new$fact_predict=="1",]$reaction_count)-
+              mean(new[new$fact_predict=="0",]$reaction_count)}
+
+hist(rand_dist,main="Distribution of Mean Differences Between Rating Groups",ylab="Frequency")
+quantile(rand_dist,c(.025,.975))
+```
+
+## Building a Linear Regression Model 
+### reaction_count = 3967.39 + (6613.82)`no factual content` + (6154.51)(share_count_c) + 10882.8(share_count_c*`no factual content`)
+
+*A linear regression model mapping reaction_count fitted to rating and share_count was created.*
+*Null Hypothesis: Rating, share_count, and the interaction of the them does not explain variation in Reaction_Count. Alternative Hypothesis: Rating, share_count, and the interaction of the them explains variation in Reaction_Count.*
+
+*The mean/predicted reaction_count for a post with "some level of factual content" and average share_count is 3967.4. Posts that have no factual content with average share_count have a predicted reaction_count that is 6613.8 higher posts with "some level of factual content" and average share_count. Share_count is significantly associated with reaction_count for posts with "some level of factual content": for every 1 unit increase in share_count, predicted reaction_count goes up by 6154.5 for this group. The slope of reaction_count on share_count for posts with no factual content is 10882.8 greater than for posts with "some level of factual content."*
+
+*After recomputing the regression results with robust standard errors, there were no changes to coefficient significance.*
+
+*The model explains 34% of the variation in the response variable (Adjusted R-squared: 0.34)*
+```{r}
+#Dummy coding rating and category and mean centeringlog10(numeric variables)
+
+log_center <- function(x) log10(x) - mean(log10(x))
+fbrawdata_1 <- cbind(fbrawdata,(dummy.code(fbrawdata$Rating) %>% as.data.frame())) 
+fbrawdata_2 <- cbind(fbrawdata_1,(dummy.code(fbrawdata$Category) %>% as.data.frame())) 
+fbrawdata_3 <- fbrawdata_2 %>% mutate(comment_count_c = (comment_count- mean(comment_count))) %>% mutate(share_count_c = (share_count- mean(share_count)))
+
+centered_cols <- fbrawdata_2 %>% mutate_at(vars(contains("count")),log_center) %>% select(contains("count")) %>% rename(share_count_c = share_count,reaction_count_c = reaction_count,comment_count_c = comment_count)
+
+fbrawdata_3 <-  cbind(fbrawdata_2,centered_cols)
+
+share_mean <- mean(fbrawdata_3$share_count_c)
+```
+
+
+```{r}
+# Performing the Linear Regression
+fit<-lm(reaction_count ~ `no factual content`*share_count_c, data=fbrawdata_3); summary(fit)
+
+# Linear Regression Plot 
+ggplot(fbrawdata_3, aes(share_count_c,reaction_count, color = as.factor(`no factual content`))) + geom_point(alpha = 0.1)+ geom_smooth(method = "lm", se = T, fullrange = T)  + scale_y_log10() + ggtitle("Linear Regression of Reaction_Count by Share_Count*`No Factual Content`")
+
+#checking linearity - does not meet assumption
+resids<-fit$residuals
+fitvals<-fit$fitted.values 
+ggplot()+geom_point(aes(fitvals,resids))+geom_hline(yintercept=0, color='red') + ggtitle("Residual Plots")
+
+#checking normality and homoskedasticity by checking residuals - residuals do not look normal
+resids<-lm(reaction_count~`no factual content`*share_count_c, data=fbrawdata_3)$residuals
+##qqplot for normality and linearity
+qqnorm(fit$residuals, main = "QQ-plot of Model Residuals")
+qqline(fit$residuals, col = "red")
+
+#assessing homoskedasticity
+bptest(fit) #H0: homoskedastic; reject the null - data is heteroskedastic
+
+#recompute regression results 
+coeftest(fit, vcov = vcovHC(fit))
+```
+
+## Linear Regression Model with Bootstrapped Standard Errors 
+
+*There are no changes in SEs and p-values using these SEs. All coefficients remain significant since the confidence intervals for the SEs do not contain zero.*
+
+```{r}
+# repeat 5000 times
+samp_distn<-replicate(5000, {
+  boot_dat <- sample_frac(fbrawdata_3, replace=T) #take bootstrap sample of rows
+  fit_boot <- lm(reaction_count~`no factual content`*share_count_c, data=boot_dat) #fit model on bootstrap sample 
+  coef(fit_boot) #save coefs
+})
+
+## Estimated SEs
+samp_distn %>% t %>% as.data.frame %>% pivot_longer(everything()) %>% group_by(name) %>% summarize(lower = quantile(value, 0.025),upper = quantile(value,0.975))
+```
+
+
+```{r}
+class_diag<-function(probs,truth,thresh = 0.5){
+  tab<-table(factor(probs>thresh,levels=c("FALSE","TRUE")),truth)
+  acc=sum(diag(tab))/sum(tab)
+  sens=tab[2,2]/colSums(tab)[2]
+  spec=tab[1,1]/colSums(tab)[1]
+  ppv=tab[2,2]/rowSums(tab)[2]
+  f1=2*(sens*ppv)/(sens+ppv)
+
+  if(is.numeric(truth)==FALSE & is.logical(truth)==FALSE){
+    truth<-as.numeric(truth)-1}
+  
+  #CALCULATE EXACT AUC
+  ord<-order(probs, decreasing=TRUE)
+  probs <- probs[ord]; truth <- truth[ord]
+  
+  TPR=cumsum(truth)/max(1,sum(truth)) 
+  FPR=cumsum(!truth)/max(1,sum(!truth))
+  
+  dup<-c(probs[-1]>=probs[-length(probs)], FALSE)
+  TPR<-c(0,TPR[!dup],1); FPR<-c(0,FPR[!dup],1)
+  
+  n <- length(TPR)
+  auc<- sum( ((TPR[-1]+TPR[-n])/2) * (FPR[-1]-FPR[-n]) )
+
+  data.frame(acc,sens,spec,ppv,f1,auc)
+}
+
+
+confusion_matrix<-function(probs,truth,thresh = 0.5){
+  tab<-table(factor(probs>thresh,levels=c("FALSE","TRUE")),truth)
+  print(tab)}
+```
+
+## Logistic Regression Model
+
+### log(odds of `no factual content`) = -3.14202 +  0.37180(reaction_count_c) + 1.30412(`right`) + 1.53430(`left`)
+
+*Controlling for reaction count, Right-leaning vs non-Right leaning posts are significantly different (p = 5.886e-11). The odds of containing "no factual content" for right-leaning sources are e^1.30412 = 3.684445 the odds for posts from non-right leaning sources. Controlling for reaction count, Left-leaning vs non-Left leaning posts are significantly different (p = 2.054e-09). The odds of containing "no factual content" for left-leaning sources are e^1.53430 = 4.638078 the odds for posts from non-left leaning sources. Controlling for "category", for every 1 unit increase in in reaction_count_c, the odds of containing "no factual content" change by a factor of e^0.37180 = 1.450343.*
+
+*The model's accuracy, sensitivity, specificity, and precision are the following: 0.8797468, 0.387234, 0.9382903,and  0.42723, respectively. The model's AUC is 0.729388.*
+
+*The AUC of the ROC plot is 0.72 - a "Fair" score.*
+```{r}
+
+fit3<-glm(`no factual content`~reaction_count_c+`right`+`left`, data=fbrawdata_3, family="binomial")
+coeftest(fit3)
+
+probs <- predict(fit3, type = "response")
+
+temp <- NULL
+for (i in 1:500){
+  temp <- rbind(temp,(data.frame(cutoff = i/500,f1 = class_diag(probs,fbrawdata_3$`no factual content`,i/500)$f1)))
+}
+temp %>% ggplot(aes(cutoff,f1)) + geom_path()
+
+best_cutoff <- (temp %>% arrange(desc(f1)))[1,] %>% pull(cutoff)
+
+class_diag(probs,fbrawdata_3$`no factual content`,best_cutoff)
+confusion_matrix(probs,fbrawdata_3$`no factual content`,best_cutoff)
+
+# density plot of the log-odds 
+data.frame(predict = predict(fit3, type = "link"),nfc = fbrawdata_3$`no factual content`) %>% ggplot(aes(predict)) + geom_density(aes(fill = as.factor(nfc)), alpha = 0.5)
+
+ROCplot<-ggplot(fbrawdata_3)+geom_roc(aes(d=`no factual content`,m=probs), n.cuts=0)
+ROCplot
+
+#reaction
+exp( 0.37180)
+#left
+exp(1.53430)
+#right
+exp( 1.30412 )
+```
+
+## Logistic Regression Predicting "no factual content" from all Relevant Variables
+
+*The accuracy, sensitivity, specificity, precision, and AUC for the model are: 0.8797468, 0.4085106, 0.9357613, 0.4304933, and 0.7370721, respectively. The AUC indiciates a "Fair" model.*
+```{r}
+fbrawdata_4 <-  fbrawdata_3 %>% 
+  select(-post_id, -`mostly false`, -`mostly true`, -`mixture of true and false`,-Rating, -mainstream, -left,-right,-Page) %>% rename(y = `no factual content`) %>% select(-contains("count_c"))
+fit4<-glm(y~., data=(fbrawdata_4 %>% na.omit), family="binomial")
+coeftest(fit4)
+
+probs <- predict(fit4, type = "response")
+
+temp <- NULL
+for (i in 1:500){
+  temp <- rbind(temp,(data.frame(cutoff = i/500,f1 = class_diag(probs,fbrawdata_3$`no factual content`,i/500)$f1)))
+}
+temp %>% ggplot(aes(cutoff,f1)) + geom_path()
+
+best_cutoff <- (temp %>% arrange(desc(f1)))[1,] %>% pull(cutoff)
+class_diag(probs,fbrawdata_4$y,best_cutoff)
+confusion_matrix(probs,fbrawdata_4$y,best_cutoff)
+
+# density plot of the log-odds 
+data.frame(predict = predict(fit4, type = "link"),nfc = fbrawdata_4$y) %>% ggplot(aes(predict)) + geom_density(aes(fill = as.factor(nfc)), alpha = 0.5)
+
+ROCplot<-ggplot(fbrawdata_4)+geom_roc(aes(d=y,m=probs), n.cuts=0)
+ROCplot
+
+```
+## 10-fold Cross-Validation with the same Logistic Regression Model
+
+*The accuracy, sensitivity, specificity, precision, and AUC for the model are: 0.895575, 0.1599529, 0.9823403, 0.5080952, and 0.8212472, respectively. The 10-fold cross-validated model's accuracy improved slightly, but its sensitivity decreased. This means the model correctly classified more cases, it identified less true-positives (non-factual posts). The model's specificity improved, meaning it correctly identified more posts as containing "some level of factual content." The model's overall AUC improved additionally - proving the cross-validated model performs slightly better than the non-CV model.*
+
+```{r}
+set.seed(1234)
+k=10
+
+data<-fbrawdata_4[sample(nrow(fbrawdata_4)),] 
+folds<-cut(seq(1:nrow(fbrawdata_4)),breaks=k,labels=F)
+
+diags<-NULL 
+for(i in 1:k){
+train<-data[folds!=i,] 
+test<-data[folds==i,] 
+truth<-test$y
+fit<-glm(y~(.)^2,data=train,family="binomial") 
+probs<-predict(fit,newdata = test, type="response")
+diags<-rbind(diags,class_diag(probs,truth)) }
+
+summarize_all(diags,mean) 
+```
+
+## LASSO
+
+*After perfoming LASSO, the category and reaction_count variables are retained.*
+  
+```{r}
+y<-as.matrix(fbrawdata_4$y) #grab response
+x<-model.matrix(y~.,data=fbrawdata_4)[,-1] #grab predictors
+head(x)
+
+x<-scale(x)
+
+cv <- cv.glmnet(x,y, family="binomial")
+{plot(cv$glmnet.fit, "lambda", label=TRUE); abline(v = log(cv$lambda.1se))}
+
+cv<-cv.glmnet(x,y,family="binomial") 
+lasso<-glmnet(x,y,family="binomial",lambda=cv$lambda.1se) 
+coef(lasso)
+```
+
+## Performing 10-fold CV Using LASSO-Selected Variables
+
+*After performing the 10-fold CV using only the lasso-selected variables, the model's out-of-sample AUC is 0.7297029. The 10-fold CV lasso-variable model performed poorer when compared to the 10-fold CV model (AUC = 0.8212472), but approximately as well as the original logistic regression model using all the variables (AUC = 0.7370721).*
+
+```{r}
+## CV on lasso variables
+set.seed(1234)
+k=10
+
+data <- fbrawdata_4 %>% sample_frac #put rows of dataset in random order 
+folds <- ntile(1:nrow(data),n=10) #create fold labels
+
+diags<-NULL 
+for(i in 1:k){
+train <- data[folds!=i,] #create training set (all but fold i) 
+test <- data[folds==i,] #create test set (just fold i)
+truth <- test$y #save truth labels from fold i
+fit <- glm(y~ reaction_count + Category, data=train, family="binomial")
+probs <- predict(fit, newdata=test, type="response") 
+diags<-rbind(diags,class_diag(probs,truth))
+} 
+diags%>%summarize_all(mean)
+```
+
+
+
+
+
+

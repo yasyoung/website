@@ -1,0 +1,300 @@
+---
+title: "SDS348 Project 1"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+  always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Yasmine Young
+## yly72
+
+
+# Introduction
+
+The two datasets, realdonaldtrump.csv (or "tweets") and NASDAQCOM.csv (or "nasdaq"), will be used to analyze the relationships between popularity in President Trump's tweets, tweet topic trends, and economic indicators. The both datasets were downloaded from Kaggle: [Tweets](https://www.kaggle.com/austinreese/trump-tweets?select=realdonaldtrump.csv) and [NASDAQ](https://www.kaggle.com/manuelmusngi/nasdaq-composite-index). 
+
+The Trump tweet dataset featured all tweets and their corresponding links, dates, likes, retweets, mentions, and hashtags - ranging from 2009 to 2020. To observe the effect of Trump's presidential term, only tweets from 2015 to present were analyzed. Additionally, fields detecting words commonly used by the president (for example, China) were created and added to the dataset. The Nasdaq Composite Index is the market capitalization-weighted index of over 2,500 common equities listed on the Nasdaq stock exchange and is frequently used as an indicator of global economy. The NASDAQ Composite dataset contains the closing bell index reported at 4:16PM EST on NYSE open days: M-F, discluding weekends and federal holidays. The tweet dataset was joined with the NASDAQ composite dataset by date of tweet. Thus, we will be able to visualize global economic trends with current events denoted by words featured in Trump's tweets. 
+
+I chose these datasets as I am interested in how US politics and leaders have an affect on our collective global economy. Though one can assume the social media presence of the President of the United states can affect foreign relations and thus our economy, I wanted to analyze if the any daily topic of the President Trump's tirades correlated with stock market up- and/or downturns. 
+
+# Importing the datasets and loading packages 
+
+```{r}
+library(tidyverse)
+library(cluster)
+library(rlist)
+library(RColorBrewer)
+library(plotly)
+tweets <- read_csv("realdonaldtrump.csv", col_types = cols(date = col_character()))
+
+nasdaq <- read_csv("NASDAQCOM.csv")
+```
+
+# Data Cleaning
+### Preparing the datasets for joining.
+
+The tweets datasets contains a column called "date" that contains both the date and time of each tweet sample. The new tweet1 dataset will have a new column called "year" that is filled with the values of the last two digits of the year from the newly created "date" column. Finally, all the content is changed into lowercase for later ease of use. 
+
+```{r}
+# Separating date and time stamp in the tweet dataset; changes all tweet characters to lowercase
+tweet1 <- tweets %>% separate(date, sep=" ", into=c("date", "time")) %>% mutate(year = as.integer(str_sub(date, -2))) %>% filter(year >= 15) %>% mutate(content = tolower(content)) 
+```
+
+
+# Creating new columns 
+##### Detecting whether certain words (listed in a text file) are contained within a tweet.
+
+This for loop detects whether or not certain words listed in the "terms.txt" text file are contained within a sample tweet. If the tweet does contain a listed term, it outputs "TRUE" in that term's column. If it does not, it outputs "FALSE."
+
+```{r}
+terms <- readLines('terms.txt')
+tweet2 <- tweet1 %>% select(!c("mentions", "hashtags"))
+for (term in terms) {
+  colname = as.character(term)
+  tweet2 <- tweet2 %>% mutate(!!colname := str_detect(content, term))
+}
+```
+
+# Joining datasets 
+
+The datasets were joined by date. In order to do so, the "tweet3" dataframe was created to make a column that rearranged the date in a format matching the date in the nasdaq dataset and was then converted into R's date datatype. Dataframe "nasdaq1" was created to mutate the date into the date datatype. Additionally, the NASDAQ composite score was changed from character to double. During the join, cases were dropped from there were dates not found in either dataset. Any missing cases would most likely correspond to tweets not matching up to the NASDAQ on the weekend. This should not have caused many problems as the NASDAQ composite is not reported on the weekends and economic data would otherwise not have been available.
+
+```{r, warning=F}
+#reformatting the date column
+tweet3 <- tweet2 %>% mutate(date = as.Date(date,"%m/%d/%y"))
+nasdaq1 <- nasdaq %>% mutate(date = as.Date(DATE, "%m/%d/%y"))
+
+#joining of datasets by date; creates a double datatype for NASDAQCOM and removes the character version of NASDAQCOM and NAs 
+tweetnas <- inner_join(tweet3, nasdaq1, by = c("date")) %>% mutate(NASDAQCOM_d = as.double(NASDAQCOM)) %>% select(!NASDAQCOM) %>% na.omit() 
+```
+
+# Tidying: Using pivot_wider and pivot_longer
+
+Pivot_wider created columns from the unique NASDAQCOM values and filled them with the case NASDAQCOM_d score if it matched or NAs, if not. Pivot_longer takes the values from the selected columns and places them into a column named "name" - reverting the dataframe into a similar-to-original dataset. 
+
+```{r}
+pivotset <- nasdaq %>% pivot_wider(names_from = NASDAQCOM, values_from = NASDAQCOM)
+pivotset %>% pivot_longer(cols = !c(DATE), values_to = "NASDAQCOM", values_drop_na = TRUE)  %>% glimpse()
+```
+
+# Summarizing the dataset 
+
+The "inside" for loop creates a row containing the values from performing summary functions on each numeric column (besides id and date) that meets the categorical logical requirement - then places it into a dataframe while removing NAs. The summary functions include mean, median, standard deviation, standard error, maximum, minimum, 25th percentile, and 75th percentile. The encompassing for loop takes the dataframe created by the "inside" for loop and places it into a list. Mutate was performed on these variable_summary lists to add the column "range" by subtracting the min from the max value and arranges them by descending range order. 
+Another analysis calculates the mean of each numeric variables (besides id and year) by each year. An additional analysis compares the NASDAQ scores and mean retweets when grouped by two categorical variables: biden/obama and/or russia/china.  
+
+```{r}
+listofdfs <- list()
+
+for (metric in colnames(tweetnas %>% select(!id) %>% select_if(is.numeric))){
+  df <- data.frame()
+  
+for (col in colnames(tweetnas %>% select_if(is.logical))) {
+  row <- tweetnas %>% select(!id) %>% filter(.data[[col]] == TRUE) %>% summarize(term = col, mean = mean(.data[[metric]]), median = median(.data[[metric]]),sd = sd(.data[[metric]]), n = n(), se = sd/sqrt(n), max = max(.data[[metric]]), min = min(.data[[metric]]), perc_25 = quantile(.data[[metric]], 0.25), perc_75 = quantile(.data[[metric]], 0.75))
+  
+  df <- rbind(df, row) %>% na.omit()
+  
+}
+listofdfs <- list.append(listofdfs, df)
+}
+
+# Assigning datasets into dataframes within a list
+retweets_summary <- listofdfs[[1]]
+favorites_summary <- listofdfs[[2]]
+nasdaq_summary <- listofdfs[[3]]
+
+# Computing the range of NASDAQ Composite scores, retweets, and favorites
+retweets_summary %>% mutate(range = max - min) %>% arrange(desc(range)) %>% glimpse()
+favorites_summary %>% mutate(range = max - min) %>% arrange(desc(range)) %>% glimpse()
+nasdaq_summary %>% mutate(range = max - min) %>% arrange(desc(range)) %>% glimpse()
+
+# Select statistics by year
+tweetnas %>% group_by(colyear = as.character(year)) %>% select(!c(id,year)) %>% summarize_if(is.numeric, mean)  %>% glimpse()
+
+#popularity and associated mean NASDAQCOM score of tweets containing foreign-related terms
+tweetnas %>% group_by(russia, china) %>% summarize(NASDAQ_Mean = mean(NASDAQCOM_d), retweets_mean = mean(retweets), n = n()) %>% arrange(n)  %>% glimpse()
+
+#popularity and associated mean NASDAQCOM score of tweets containing democratic-related terms
+tweetnas %>% group_by(biden, obama) %>% summarize(NASDAQ_Mean = mean(NASDAQCOM_d), Retweets_mean = mean(retweets), n = n()) %>% arrange(n)  %>% glimpse()
+```
+
+
+
+# Computing Correlation Statistics
+
+The below code block calculates the overall correlation between the NASDAQ Composite score, retweets, and favorites. Retweets and favorite are strongly, positively correlated. The NASDAQCOM_d score correlates positively with both retweets and favorites, with a slightly stronger correlation to favorites. 
+
+```{r}
+tweetcor <- tweetnas %>% select(!c(id, year)) %>% select_if(is.numeric) %>% cor(use="pair")
+tweetcor
+```
+
+
+# Popularity of Trump's Tweets Containing COVID-19 Related Terms 
+
+Of the COVID-19 related terms taken into consideration, tweets containing the words "chinese virus" had the highest median favorites and retweets. More peripherally related, tweets containing the word "China" had the lowest median favorites and retweets of the terms taken into consideration. Tweets containing the words "Chinese", "coronavirus", and "covid" displayed similar popularities. 
+
+```{r}
+tweetnas %>% pivot_longer(c(is.logical)) %>% group_by(name,value)%>% filter(value == TRUE) %>% filter(name %in% c("covid", "coronavirus", "chinese virus", "chinese","china")) %>% ggplot() + geom_violin(aes( x = c(value), y = retweets, fill = name), draw_quantiles = 0:2/2,trim = F, alpha = 0.2) + geom_boxplot(aes( x = c(value), y = favorites, fill = name), alpha = 0.2,width = 0.9)+ scale_y_continuous(trans = "log10") + xlab("Term") + ylab("Retweets or Favorites") + ggtitle("Popularity of President Trump's Tweets Containing Certain Terms", subtitle = "Favorites depicted by boxplots, Retweets depicted by violins")
+
+```
+
+# Barplots of mean retweets of tweets containing or not containing the term "Fake News"
+
+The following barplot examines the popularity of tweets that do or do not containg the term "Fake News" since President Trump first used the term in 2017. Trump first used the term [once in 2016](https://twitter.com/realDonaldTrump/status/807588632877998081?ref_src=twsrc%5Etfw%7Ctwcamp%5Etweetembed%7Ctwterm%5E807588632877998081%7Ctwgr%5Eshare_3&ref_url=https%3A%2F%2Few.com%2Ftv%2F2017%2F06%2F27%2Fdonald-trump-fake-news-twitter%2F) but it was not scraped into the dataset. The term has gained popularity among Trump supporters since 2016 and has consistently outperformed tweets that did not contain the term "fake news." For more information about the origin of the term, see this [article](https://www.bbc.com/news/blogs-trending-42724320).  
+
+
+```{r}
+tweetnas %>% mutate(year = (str_sub((date), end = 4)))%>% ggplot(aes(x = year, y = retweets)) + geom_bar(aes(fill = `fake news`),position = "dodge",stat = "summary", alpha = 0.85) + geom_errorbar(aes(group = `fake news`),stat = "summary", width = 0.5, position = position_dodge(0.9)) + theme_minimal() + ggtitle("Mean Retweets by Year from 2015 to 2020", subtitle = "From Trump Campaign Launch to Present") + scale_y_continuous(breaks = seq(0, 30000, by = 5000)) + scale_fill_viridis_d(option = 'E') + xlab("Year") + ylab("Retweets")
+```
+
+
+```{r, include=FALSE}
+# #for reference
+# tweetnas %>% group_by(year) %>% filter(`fake news` == T) %>% summarize(Retweets_mean = mean(retweets), favorites_mean = mean(favorites), n = n()) %>% arrange(n) %>% glimpse()
+# 
+# #for reference
+# tweetnas%>% filter(`fake news` == T)  %>% arrange(year) %>% glimpse()
+# 
+# # for reference - the date Trump originally tweeted the term "Fake news"
+# tweetnas %>% filter(date == '2016-12-10') %>% glimpse()
+```
+
+
+# Trump's Overall Tweet Popularity Over Time (Overlayed with the NASDAQCOM for reference)
+
+Trump's social media presence and popularity skyrocketed in 2016 and seems to make its sharpest upturn in the fall months - most likely occuring around the November elections. Thanks to his predecessors, Trump inherited a booming economy (represented by the NASDAQ composite score) and the NASDAQ composite score has steadily increased since 2015 but took a notable dip in early 2020 at the start of the global pandemic. Since the COVID-19 economic downturn, the market have seemed to rapidly regain strength and Trump's social media presence appears unscathed. 
+
+```{r}
+plot1 <- tweetnas %>% ggplot() + geom_point(aes(x = date, y = NASDAQCOM_d, color = "NASDAQCOM"), size = 1) + geom_smooth(aes(date, retweets, color = "Retweets"),alpha =1) + geom_smooth(aes(date, favorites, color = "Favorites"))+ ylab("Count for each Variable") + xlab("Date by Year") + theme_minimal() + ggtitle("Trump's Tweet Popularity from 2015 to Present") + scale_color_viridis_d(option = "E") 
+
+plot1  + scale_y_continuous(limits = c(0,100000),breaks = seq(0,100000,10000))
+```
+
+
+```{r, include=FALSE}
+# #for reference
+# tweetnas %>% filter(date >= '2019-03-01' & date <= '2020-03-01') %>% select(!id) %>% summarize_if(is.numeric, median)  %>% glimpse()
+# 
+# #for reference
+# tweetnas %>% filter(date >= '2020-03-01') %>% select(!id) %>% summarize_if(is.numeric, median)  %>% glimpse()
+```
+
+
+
+# Correlation Heatmap
+
+Retweets and favorites are strongly positively correlated (0.94), while the favorites and NASDAQCOM_d pair (0.57), and the retweets and NASDAQCOM_d pair (0.52) are less strongly positively correlated. This makes sense as types of social media engagement on a single platform would be correlated. A tweet that is popular would have a higher amount of retweets and favorites compared to a less popular tweet. Trump's social media engagement and the NASDAQ composite are correlated because they have both increased over the years, but likely independent of one another. 
+
+```{r}
+tweetnas %>% select(!c(id, year)) %>% select_if(is.numeric)%>%cor%>%as.data.frame%>%
+  rownames_to_column%>%pivot_longer(-1)%>%
+  ggplot(aes(rowname,name,fill=value))+geom_tile()+
+  geom_text(aes(label=round(value,2)))+
+  xlab("")+ylab("")+coord_fixed() + scale_fill_gradient2(low="red",mid="white",high="blue") + ggtitle("Correlation Between Retweets, Favorites, and NASDAQ Composite Scores") + scale_fill_distiller(palette = "YlGnBu", 'Value', limits=c(0.5, 1), breaks = c(0.5, 0.6, 0.7, 0.8, 0,9, 1)) 
+```
+
+
+# K-Means Clustering
+
+Based on the line plot of within sum of squares (WSS) and line plot of average silhouette width, the optimal number of clusters seems to be 4. According to the silhouette plot, clusters 1 and 4 are the best defined clusters, while 2 and 3 are less well defined. The average silhouette width is 0.51 which corresponds to a moderately strong clustering.
+When mapped to a 3D plot, the clusters can be viewed according to all 3 dimensions. Cluster 1 has the lowest NASDAQ Composite score, lowest favorites, and lowest retweets. Cluster 4 simiaarly maps onto a low amount of retweets and favorites, but has a mid to high range of NASDAQ Composite scores. Cluster 3 has a wide range (low to high) of NASDAQ composite score but has a low-mid range of retweets and favorites. Cluster 2 contains all the remaining points that map onto a mid to high range of retweets and favorites and a generally higher range of NASDAQ composite scores. The data is not globular because retweets and favorites are nearly perfectly correlated, but are not so to NASDAQ composite scores. 
+
+```{r}
+wss<-vector() 
+
+for(i in 1:10){
+temp<- tweetnas %>% select(favorites,NASDAQCOM_d, retweets) %>% scale %>% kmeans(i)
+wss[i]<-temp$tot.withinss
+}
+
+ggplot()+geom_point(aes(x=1:10,y=wss))+geom_path(aes(x=1:10,y=wss))+
+  xlab("k")+scale_x_continuous(breaks=1:10) + ggtitle("WSS Line Plot") + xlab("Clusters") + ylab("Within Sum of Squares")
+
+
+sil_width<-vector()
+for(i in 2:10){  
+  kms <- kmeans(tweetnas %>% select(favorites,NASDAQCOM_d, retweets) %>% scale,centers=i) 
+  
+  sil <- silhouette(kms$cluster,dist(tweetnas %>% select(favorites,NASDAQCOM_d, retweets) %>% scale)) 
+  sil_width[i]<-mean(sil[,3]) 
+}
+ggplot()+geom_line(aes(x=1:10,y=sil_width))+scale_x_continuous(name="k",breaks=1:10) + ggtitle("Line Plot for kmeans Average Silhouette Width", subtitle = "Silhouette Width by k") + xlab("K") + ylab("Average Silhouette Width")
+```
+
+```{r}
+set.seed(348)
+tweetnasnum <- tweetnas %>% select(favorites,NASDAQCOM_d, retweets) %>% scale
+kmeans4 <- tweetnasnum %>% kmeans(4)
+sil <- silhouette(kmeans4$cluster,dist(tweetnasnum))
+
+plot(sil, border = NA, col = c('#033780', '#F39B7D', '#D1D2F9', '#A3BCF9'), main = "Silhouette Plot for kmeans, k = 4")
+```
+
+# 3D plotly for kmeans
+
+```{r}
+tweetnasnum %>% as.data.frame %>% mutate(cluster = as.factor(kmeans4$cluster))%>%plot_ly(x= ~favorites,  y = ~NASDAQCOM_d, z = ~retweets, color= ~cluster, type = "scatter3d", mode = "markers") %>% layout(scene = list(xaxis = list(title = 'Favorites'), yaxis = list(title = 'NASDAQ Composite Score'), zaxis = list(title = 'Retweets')))
+```
+
+
+# Performing PAM 
+### Note: PAM was taking too long so the data was downsampled to 5000.
+
+According to the line plot for silhouette width, the optimal number of clusters seems to be 2. The silhouette width plot defines cluster 1 to be the best defined cluster out of the two. Cluster 1 contains tweets with low associated NASDAQ composite scores, low retweets. and low favorites. Cluster 2 contains the remainder of the tweets witha mid to high range of NASDAQ composite scores and a mid to high range of both retweets and favorites. The average silhouette width is 0.63 which corresponds to a moderately strong clustering.The data is not globular because retweets and favorites are nearly perfectly correlated, but are not so to NASDAQ composite scores. 
+
+```{r}
+set.seed(348)
+sil_width<-vector()
+x <-tweetnasnum[sample(nrow(tweetnasnum),5000),] %>% scale()
+for(i in 2:10){  
+  pam_fit <- pam(x, k = i)
+  sil_width[i] <- pam_fit$silinfo$avg.width  
+}
+ggplot()+geom_line(aes(x=1:10,y=sil_width))+scale_x_continuous(name="k",breaks=1:10) + ggtitle("Line Plot for PAM Average Silhouette Width", subtitle = "Silhouette Width by k") + xlab("K") + ylab("Average Silhouette Width")
+```
+
+```{r}
+set.seed(348)
+x <-(tweetnas %>% select(NASDAQCOM_d,retweets,favorites) %>% scale)[sample(nrow(tweetnas),5000),]
+x_gower <- daisy(x, metric = "gower")
+
+pam2 <- x_gower %>% pam(2, diss = T)
+
+plot(silhouette(pam2$clustering, x_gower), border = NA, col = c('#033780', '#F39B7D'), main = "Silhouette Plot for PAM, k = 2")
+```
+
+# plotly 3D for PAM
+
+```{r}
+x %>% as.data.frame %>% mutate(cluster = as.factor(pam2$clustering))%>%plot_ly(x= ~favorites,  y = ~NASDAQCOM_d, z = ~retweets, color= ~cluster, type = "scatter3d", mode = "markers") %>% layout(scene = list(xaxis = list(title = 'Favorites'), yaxis = list(title = 'NASDAQ Composite Score'), zaxis = list(title = 'Retweets')))
+```
+
+
+
+```{r, include = F}
+## Extra plots that I thought were interesting but are FYI
+# plot1 <- tweetnas %>% ggplot() + geom_point(aes(x = date, y = NASDAQCOM_d, color = "NASDAQCOM"), size = 1) + geom_smooth(aes(date, retweets, color = "Retweets"),alpha =1) + geom_smooth(aes(date, favorites, color = "Favorites"))  + ylim(0, 40000)
+# plot1 + ggtitle("All Samples")
+# for (col in colnames(tweetnas %>% select_if(is.logical))) {
+#   print(plot1 + facet_wrap(~.data[[col]]) + ggtitle(col))
+# }
+```
+
+
+```{r, include = F}
+## Extra plots that I thought were interesting but are FYI
+#Log10 Counts of Tweets Containing Certain Terms
+# tweetnas %>% summarize_all(function(x) sum(x == TRUE)) %>% pivot_longer(col = colnames(tweetnas)) %>% filter(value != 0) %>% ggplot(aes(reorder(name,-value), value, fill = value)) + geom_bar(stat = "identity", alpha = 0.7) + scale_y_log10() + coord_flip() + ggtitle("Log10 Counts of Trump's Tweets containing Certain Terms") + xlab("Unique Terms") + ylab("Log10 Counts") + scale_fill_gradient(low="blue", high="yellow")
+```
+
+
+```{r, include = F}
+## Extra plots that I thought were interesting but are FYI
+# tweet containing x by year
+# tweetnas %>% mutate(year = (str_sub((date),end = 4))) %>% ggplot(aes(x = year,y = retweets,fill = china)) + geom_violin(position = position_dodge(1)) + scale_y_log10() + geom_point(position = position_dodge(1), alpha = 0.1, size = 0.5)
+```
