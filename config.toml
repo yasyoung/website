@@ -44,4 +44,4 @@ theme = "hugo-sustain"
   name = "Curriculum Vitae"
   identifier = "resume"
   weight = 300
-  url = "/Curriculum Vitae/"
+  url = "resume.pdf"
