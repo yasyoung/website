@@ -1,6 +1,6 @@
 baseurl = "/"
 languageCode = "en-US"
-title = "Chris Turner"
+title = "Yasmine Young"
 # Enable comments by entering your Disqus shortname
 disqusShortname = ""
 # Enable Google Analytics by entering your tracking code
@@ -20,11 +20,11 @@ theme = "hugo-sustain"
   custom_js  = []
 
 [params.social]
-  Github        = "username"
-  Email         = "email@example.com"
-  Twitter       = "username"
-  LinkedIn      = "username"
-  Instagram     = "username"
+  Github        = "https://github.com/yasyoung"
+  Email         = "yasyoung@utexas.edu"
+  Twitter       = "https://twitter.com/yesmibe"
+  LinkedIn      = "https://www.linkedin.com/in/yasyoung/"
+  Instagram     = "https://www.instagram.com/yasmineyoungin/"
 #  Stackoverflow = "username"
 #  Medium        = "username"
 #  Telegram      = "username"
@@ -41,7 +41,7 @@ theme = "hugo-sustain"
   weight = 200
   url = "/projects/"
 [[menu.main]]
-  name = "resume"
+  name = "Curriculum Vitae"
   identifier = "resume"
   weight = 300
-  url = "/resume/"
+  url = "/Curriculum Vitae/"

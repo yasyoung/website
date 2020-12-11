@@ -1,0 +1,28 @@
+---
+title: "Gilmore Girls and Reticulate"
+author: "Yasmine Young"
+date: '2020-12-10'
+description: ''
+slug: reticulate-time
+tags: []
+categories: []
+---
+
+![Lets be honest, Jess was the best option out of the three.](/img/yasminexjess.png)
+
+
+```{r}
+library(reticulate)
+```
+
+```{python}
+string = "Why did they completely ruin Rory's character after Season 3? Season 4 was to her detriment. It became only about 'Who is Rory going to pick?' 'Dean, Jess, Dean again, Jess again, Logan, Dean, Logan, no Logan, Logan again, Jess'. My opinion? Should have been Jess all along."
+
+```
+
+```{r}
+library(stringr)
+regmatches(py$string,gregexpr("..", py$string, perl=TRUE))
+```
+
+

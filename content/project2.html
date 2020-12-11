@@ -1,0 +1,513 @@
+---
+title: "SDS 348 Project 2"
+output: html_document
+---
+
+<link href="/rmarkdown-libs/anchor-sections/anchor-sections.css" rel="stylesheet" />
+<script src="/rmarkdown-libs/anchor-sections/anchor-sections.js"></script>
+
+
+<div id="yasmine-young-yly72" class="section level1">
+<h1>Yasmine Young, yly72</h1>
+<div id="introduction" class="section level2">
+<h2>Introduction</h2>
+<p>The “facebook_fact_check.csv” or “fbrawdata” dataset contains the numbers of social media interactions on fact-checked news articles published by a variety sources. The variables are as follows: Category (left, right, mainstream), Page (Politico, CNN Politics, Eagle Rising, Right Wing News, Occupy Democrats, ABC News Politics, other), Rating (mixture of true and false, no factual content, mostly true, mostly false), share_count (numeric), reaction_count (numeric), and comment_count (numeric). The numeric variables calculate the number of shares, reactions, and comments that each post had when it was scraped. There are 2212 observations.</p>
+<p>The variables “Debate”, “Post Type”, “Date Published”, “Account ID”, and “Post URL” were removed from the dataset as they would not be used in the analysis. NAs were removed from the dataset.</p>
+</div>
+<div id="importing-the-dataset-and-relevant-packages" class="section level2">
+<h2>Importing the dataset and relevant packages</h2>
+<pre class="r"><code>library(tidyverse)</code></pre>
+<pre><code>## ── Attaching packages ─────────────────────────────────────────────────────────────────── tidyverse 1.3.0 ──</code></pre>
+<pre><code>## ✓ ggplot2 3.3.2     ✓ purrr   0.3.4
+## ✓ tibble  3.0.3     ✓ dplyr   1.0.2
+## ✓ tidyr   1.1.2     ✓ stringr 1.4.0
+## ✓ readr   1.3.1     ✓ forcats 0.4.0</code></pre>
+<pre><code>## Warning: package &#39;ggplot2&#39; was built under R version 3.6.2</code></pre>
+<pre><code>## Warning: package &#39;tibble&#39; was built under R version 3.6.2</code></pre>
+<pre><code>## Warning: package &#39;tidyr&#39; was built under R version 3.6.2</code></pre>
+<pre><code>## Warning: package &#39;purrr&#39; was built under R version 3.6.2</code></pre>
+<pre><code>## Warning: package &#39;dplyr&#39; was built under R version 3.6.2</code></pre>
+<pre><code>## ── Conflicts ────────────────────────────────────────────────────────────────────── tidyverse_conflicts() ──
+## x dplyr::filter() masks stats::filter()
+## x dplyr::lag()    masks stats::lag()</code></pre>
+<pre class="r"><code>library(psych)</code></pre>
+<pre><code>## Warning: package &#39;psych&#39; was built under R version 3.6.2</code></pre>
+<pre><code>## 
+## Attaching package: &#39;psych&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:ggplot2&#39;:
+## 
+##     %+%, alpha</code></pre>
+<pre class="r"><code>library(rstatix)</code></pre>
+<pre><code>## Warning: package &#39;rstatix&#39; was built under R version 3.6.2</code></pre>
+<pre><code>## 
+## Attaching package: &#39;rstatix&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:stats&#39;:
+## 
+##     filter</code></pre>
+<pre class="r"><code>library(sandwich)</code></pre>
+<pre><code>## Warning: package &#39;sandwich&#39; was built under R version 3.6.2</code></pre>
+<pre class="r"><code>library(lmtest) </code></pre>
+<pre><code>## Warning: package &#39;lmtest&#39; was built under R version 3.6.2</code></pre>
+<pre><code>## Loading required package: zoo</code></pre>
+<pre><code>## Warning: package &#39;zoo&#39; was built under R version 3.6.2</code></pre>
+<pre><code>## 
+## Attaching package: &#39;zoo&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:base&#39;:
+## 
+##     as.Date, as.Date.numeric</code></pre>
+<pre class="r"><code>library(plotROC) 
+library(glmnet)</code></pre>
+<pre><code>## Warning: package &#39;glmnet&#39; was built under R version 3.6.2</code></pre>
+<pre><code>## Loading required package: Matrix</code></pre>
+<pre><code>## 
+## Attaching package: &#39;Matrix&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:tidyr&#39;:
+## 
+##     expand, pack, unpack</code></pre>
+<pre><code>## Loaded glmnet 4.0-2</code></pre>
+<pre class="r"><code>facebook_fact_check &lt;- read_csv(&quot;facebook-fact-check.csv&quot;)</code></pre>
+<pre><code>## Parsed with column specification:
+## cols(
+##   account_id = col_double(),
+##   post_id = col_double(),
+##   Category = col_character(),
+##   Page = col_character(),
+##   `Post URL` = col_character(),
+##   `Date Published` = col_date(format = &quot;&quot;),
+##   `Post Type` = col_character(),
+##   Rating = col_character(),
+##   Debate = col_character(),
+##   share_count = col_double(),
+##   reaction_count = col_double(),
+##   comment_count = col_double()
+## )</code></pre>
+<pre class="r"><code>fbrawdata &lt;- facebook_fact_check %&gt;% select(-Debate, -`Post Type`, -`Date Published`, -account_id, -`Post URL`) %&gt;% na.omit
+fbrawdata %&gt;% nrow()</code></pre>
+<pre><code>## [1] 2212</code></pre>
+</div>
+<div id="testing-manova-assumptions" class="section level2">
+<h2>Testing MANOVA Assumptions</h2>
+<p><em>The test for multivariate normality was not met for each Rating group (p = 5.747507e-31, p = 2.183753e-13, p =1.03277e-65, p = 4.871012e-32). Since the multivariate normality assumption was not met, the homogeneity of covariance matrices test was not performed.</em></p>
+<pre class="r"><code>group &lt;- fbrawdata$Rating 
+DVs &lt;- fbrawdata %&gt;% select(comment_count,reaction_count,share_count)
+
+#Test multivariate normality for each group (null: assumption met)
+sapply(split(DVs,group), mshapiro_test)</code></pre>
+<pre><code>##           mixture of true and false mostly false mostly true no factual content
+## statistic 0.1905465                 0.6921806    0.1203061   0.08802846        
+## p.value   5.747507e-31              2.183753e-13 1.03277e-65 4.871012e-32</code></pre>
+</div>
+<div id="manova-testing-for-mean-difference-across-rating-groups" class="section level2">
+<h2>MANOVA Testing for Mean Difference Across Rating Groups</h2>
+<p><em>A MANOVA test was performed to determine whether the numeric variables (share_count, reaction_count, and comment_count show a significant mean difference across the levels of the chosen categorical variable - Rating. Significant differences were found among the four rating categories for at least one of the dependent variables (P illai trace = .1057, pseudo F (9, 6624) = 26.878, p = 2.2e-16.)</em></p>
+<p><em>Univariate ANOVAs for each dependent variable (share_count, reaction_count, and comment_count) were conducted as follow-up tests to the MANOVA, using the Bonferroni method for controlling Type I error rates for multiple comparisons. The probability of at least one type I error is 0.6764665, while the bonferroni correction is 0.00227. The univariate ANOVAs for each dependent variable show that there is a signiciant mean difference across groups. For share_count, reaction_count, and comment_count at least one rating differs. The univariate ANOVAs for share_count,reaction_count, and comment_count were also significant, F (3, 2208) = 25.809 , p = 2.2e-16, F (3, 2208) = 68.87, p =2.2e-16, and F (3, 2208) = 9.4398, p =3.385e-06, respectively.</em></p>
+<p><em>There were 22 tests performed (1 MANOVA, 3 ANOVA, and 18 Pairwise t-tests). Post hoc analysis was performed conducting pairwise comparisons to determine which Rating differed in share_count, reaction_count, and comment_count. All four Ratings were found to differ significantly from each other in terms of the numeric variables after adjusting for multiple comparisons (bonferroni α = .05/22 = 0.00227).</em></p>
+<pre class="r"><code>man1 &lt;- manova(cbind(share_count, reaction_count, comment_count) ~ Rating, data = fbrawdata)
+summary(man1)</code></pre>
+<pre><code>##             Df Pillai approx F num Df den Df    Pr(&gt;F)    
+## Rating       3 0.1057   26.878      9   6624 &lt; 2.2e-16 ***
+## Residuals 2208                                            
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+<pre class="r"><code>summary.aov(man1)</code></pre>
+<pre><code>##  Response share_count :
+##               Df     Sum Sq    Mean Sq F value    Pr(&gt;F)    
+## Rating         3 6.6662e+10 2.2221e+10  25.809 &lt; 2.2e-16 ***
+## Residuals   2208 1.9010e+12 8.6096e+08                      
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+##  Response reaction_count :
+##               Df     Sum Sq    Mean Sq F value    Pr(&gt;F)    
+## Rating         3 7.0990e+10 2.3663e+10   68.87 &lt; 2.2e-16 ***
+## Residuals   2208 7.5866e+11 3.4359e+08                      
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+##  Response comment_count :
+##               Df     Sum Sq   Mean Sq F value    Pr(&gt;F)    
+## Rating         3 3.6539e+08 121797455  9.4398 3.385e-06 ***
+## Residuals   2208 2.8489e+10  12902572                      
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+<pre class="r"><code>pairwise.t.test(fbrawdata$share_count, fbrawdata$Rating, p.adj = &quot;none&quot;)</code></pre>
+<pre><code>## 
+##  Pairwise comparisons using t tests with pooled SD 
+## 
+## data:  fbrawdata$share_count and fbrawdata$Rating 
+## 
+##                    mixture of true and false mostly false mostly true
+## mostly false       0.661                     -            -          
+## mostly true        0.092                     0.525        -          
+## no factual content 6.8e-08                   3.7e-06      &lt; 2e-16    
+## 
+## P value adjustment method: none</code></pre>
+<pre class="r"><code>pairwise.t.test(fbrawdata$reaction_count, fbrawdata$Rating, p.adj = &quot;none&quot;)</code></pre>
+<pre><code>## 
+##  Pairwise comparisons using t tests with pooled SD 
+## 
+## data:  fbrawdata$reaction_count and fbrawdata$Rating 
+## 
+##                    mixture of true and false mostly false mostly true
+## mostly false       0.877                     -            -          
+## mostly true        0.009                     0.111        -          
+## no factual content &lt; 2e-16                   1.7e-12      &lt; 2e-16    
+## 
+## P value adjustment method: none</code></pre>
+<pre class="r"><code>pairwise.t.test(fbrawdata$comment_count, fbrawdata$Rating, p.adj = &quot;none&quot;)</code></pre>
+<pre><code>## 
+##  Pairwise comparisons using t tests with pooled SD 
+## 
+## data:  fbrawdata$comment_count and fbrawdata$Rating 
+## 
+##                    mixture of true and false mostly false mostly true
+## mostly false       0.549                     -            -          
+## mostly true        0.082                     0.625        -          
+## no factual content 0.008                     0.008        2.1e-07    
+## 
+## P value adjustment method: none</code></pre>
+<pre class="r"><code># prob of type 1
+(1 - 0.95^22)</code></pre>
+<pre><code>## [1] 0.6764665</code></pre>
+<pre class="r"><code># bonferroni correction
+0.05/(22)</code></pre>
+<pre><code>## [1] 0.002272727</code></pre>
+</div>
+<div id="randomization-tests-mean-difference" class="section level2">
+<h2>Randomization Tests: Mean Difference</h2>
+<p><em>Mean Difference Randomization tests (5000 iterations) were run on <code>reaction_count</code>. The “new” dataset was mutated to contain “fact_predict” - a binary predictor where if the Rating were “no factual content” it was dummy encoded as “1”. All other ratings were dummy encoded as “0”.</em></p>
+<p><em>Null hypothesis: There is no difference between the reaction_count means of those posts that contained “no factual content” (1) and some level of factual content (mostly true, mostly false, mixture, 0). Alternative hypothesis: There is a significant difference between the reaction_count means of those posts that contained “no factual content” and some level of factual content (mostly true, mostly false, mixture). The 95% CI is 12708.97 and 24050.49. Since the CI does not contain zero, we can reject the null hypothesis and state that there is a difference in reaction count between posts that contain no factual content and some level of factual content.</em></p>
+<pre class="r"><code>rand_dist&lt;-vector()
+
+for(i in 1:5000){ 
+new&lt;- fbrawdata[sample(1:nrow(fbrawdata), replace = T),] %&gt;% mutate(fact_predict = ifelse(Rating == &quot;no factual content&quot;,&#39;1&#39;,&#39;0&#39;))
+rand_dist[i]&lt;-mean(new[new$fact_predict==&quot;1&quot;,]$reaction_count)-
+              mean(new[new$fact_predict==&quot;0&quot;,]$reaction_count)}
+
+hist(rand_dist,main=&quot;Distribution of Mean Differences Between Rating Groups&quot;,ylab=&quot;Frequency&quot;)</code></pre>
+<p><img src="/Project2_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+<pre class="r"><code>quantile(rand_dist,c(.025,.975))</code></pre>
+<pre><code>##     2.5%    97.5% 
+## 12716.95 24136.56</code></pre>
+</div>
+<div id="building-a-linear-regression-model" class="section level2">
+<h2>Building a Linear Regression Model</h2>
+<div id="reaction_count-3967.39-6613.82no-factual-content-6154.51share_count_c-10882.8share_count_cno-factual-content" class="section level3">
+<h3>reaction_count = 3967.39 + (6613.82)<code>no factual content</code> + (6154.51)(share_count_c) + 10882.8(share_count_c*<code>no factual content</code>)</h3>
+<p><em>A linear regression model mapping reaction_count fitted to rating and share_count was created.</em>
+<em>Null Hypothesis: Rating, share_count, and the interaction of the them does not explain variation in Reaction_Count. Alternative Hypothesis: Rating, share_count, and the interaction of the them explains variation in Reaction_Count.</em></p>
+<p><em>The mean/predicted reaction_count for a post with “some level of factual content” and average share_count is 3967.4. Posts that have no factual content with average share_count have a predicted reaction_count that is 6613.8 higher posts with “some level of factual content” and average share_count. Share_count is significantly associated with reaction_count for posts with “some level of factual content”: for every 1 unit increase in share_count, predicted reaction_count goes up by 6154.5 for this group. The slope of reaction_count on share_count for posts with no factual content is 10882.8 greater than for posts with “some level of factual content.”</em></p>
+<p><em>After recomputing the regression results with robust standard errors, there were no changes to coefficient significance.</em></p>
+<p><em>The model explains 34% of the variation in the response variable (Adjusted R-squared: 0.34)</em></p>
+<pre class="r"><code>#Dummy coding rating and category and mean centeringlog10(numeric variables)
+
+log_center &lt;- function(x) log10(x) - mean(log10(x))
+fbrawdata_1 &lt;- cbind(fbrawdata,(dummy.code(fbrawdata$Rating) %&gt;% as.data.frame())) 
+fbrawdata_2 &lt;- cbind(fbrawdata_1,(dummy.code(fbrawdata$Category) %&gt;% as.data.frame())) 
+fbrawdata_3 &lt;- fbrawdata_2 %&gt;% mutate(comment_count_c = (comment_count- mean(comment_count))) %&gt;% mutate(share_count_c = (share_count- mean(share_count)))
+
+centered_cols &lt;- fbrawdata_2 %&gt;% mutate_at(vars(contains(&quot;count&quot;)),log_center) %&gt;% select(contains(&quot;count&quot;)) %&gt;% rename(share_count_c = share_count,reaction_count_c = reaction_count,comment_count_c = comment_count)
+
+fbrawdata_3 &lt;-  cbind(fbrawdata_2,centered_cols)
+
+share_mean &lt;- mean(fbrawdata_3$share_count_c)</code></pre>
+<pre class="r"><code># Performing the Linear Regression
+fit&lt;-lm(reaction_count ~ `no factual content`*share_count_c, data=fbrawdata_3); summary(fit)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = reaction_count ~ `no factual content` * share_count_c, 
+##     data = fbrawdata_3)
+## 
+## Residuals:
+##    Min     1Q Median     3Q    Max 
+## -32315  -4477  -1288   1958 379863 
+## 
+## Coefficients:
+##                                    Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)                          3967.4      354.9  11.177  &lt; 2e-16 ***
+## `no factual content`                 6613.8     1179.6   5.607 2.32e-08 ***
+## share_count_c                        6154.5      352.4  17.466  &lt; 2e-16 ***
+## `no factual content`:share_count_c  10882.8      800.2  13.600  &lt; 2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 15740 on 2208 degrees of freedom
+## Multiple R-squared:  0.3409, Adjusted R-squared:   0.34 
+## F-statistic: 380.7 on 3 and 2208 DF,  p-value: &lt; 2.2e-16</code></pre>
+<pre class="r"><code># Linear Regression Plot 
+ggplot(fbrawdata_3, aes(share_count_c,reaction_count, color = as.factor(`no factual content`))) + geom_point(alpha = 0.1)+ geom_smooth(method = &quot;lm&quot;, se = T, fullrange = T)  + scale_y_log10() + ggtitle(&quot;Linear Regression of Reaction_Count by Share_Count*`No Factual Content`&quot;)</code></pre>
+<pre><code>## `geom_smooth()` using formula &#39;y ~ x&#39;</code></pre>
+<p><img src="/Project2_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+<pre class="r"><code>#checking linearity - does not meet assumption
+resids&lt;-fit$residuals
+fitvals&lt;-fit$fitted.values 
+ggplot()+geom_point(aes(fitvals,resids))+geom_hline(yintercept=0, color=&#39;red&#39;) + ggtitle(&quot;Residual Plots&quot;)</code></pre>
+<p><img src="/Project2_files/figure-html/unnamed-chunk-7-2.png" width="672" /></p>
+<pre class="r"><code>#checking normality and homoskedasticity by checking residuals - residuals do not look normal
+resids&lt;-lm(reaction_count~`no factual content`*share_count_c, data=fbrawdata_3)$residuals
+##qqplot for normality and linearity
+qqnorm(fit$residuals, main = &quot;QQ-plot of Model Residuals&quot;)
+qqline(fit$residuals, col = &quot;red&quot;)</code></pre>
+<p><img src="/Project2_files/figure-html/unnamed-chunk-7-3.png" width="672" /></p>
+<pre class="r"><code>#assessing homoskedasticity
+bptest(fit) #H0: homoskedastic; reject the null - data is heteroskedastic</code></pre>
+<pre><code>## 
+##  studentized Breusch-Pagan test
+## 
+## data:  fit
+## BP = 94.866, df = 3, p-value &lt; 2.2e-16</code></pre>
+<pre class="r"><code>#recompute regression results 
+coeftest(fit, vcov = vcovHC(fit))</code></pre>
+<pre><code>## 
+## t test of coefficients:
+## 
+##                                    Estimate Std. Error t value  Pr(&gt;|t|)    
+## (Intercept)                         3967.39     283.10 14.0143 &lt; 2.2e-16 ***
+## `no factual content`                6613.81    1865.86  3.5446 0.0004013 ***
+## share_count_c                       6154.51     677.91  9.0786 &lt; 2.2e-16 ***
+## `no factual content`:share_count_c 10882.78    3347.29  3.2512 0.0011664 ** 
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+</div>
+</div>
+<div id="linear-regression-model-with-bootstrapped-standard-errors" class="section level2">
+<h2>Linear Regression Model with Bootstrapped Standard Errors</h2>
+<p><em>There are no changes in SEs and p-values using these SEs. All coefficients remain significant since the confidence intervals for the SEs do not contain zero.</em></p>
+<pre class="r"><code># repeat 5000 times
+samp_distn&lt;-replicate(5000, {
+  boot_dat &lt;- sample_frac(fbrawdata_3, replace=T) #take bootstrap sample of rows
+  fit_boot &lt;- lm(reaction_count~`no factual content`*share_count_c, data=boot_dat) #fit model on bootstrap sample 
+  coef(fit_boot) #save coefs
+})
+
+## Estimated SEs
+samp_distn %&gt;% t %&gt;% as.data.frame %&gt;% pivot_longer(everything()) %&gt;% group_by(name) %&gt;% summarize(lower = quantile(value, 0.025),upper = quantile(value,0.975))</code></pre>
+<pre><code>## `summarise()` ungrouping output (override with `.groups` argument)</code></pre>
+<pre><code>## # A tibble: 4 x 3
+##   name                               lower  upper
+##   &lt;chr&gt;                              &lt;dbl&gt;  &lt;dbl&gt;
+## 1 (Intercept)                        3452.  4572.
+## 2 `no factual content`               2957. 10155.
+## 3 `no factual content`:share_count_c 5165. 17897.
+## 4 share_count_c                      4953.  7640.</code></pre>
+<pre class="r"><code>class_diag&lt;-function(probs,truth,thresh = 0.5){
+  tab&lt;-table(factor(probs&gt;thresh,levels=c(&quot;FALSE&quot;,&quot;TRUE&quot;)),truth)
+  acc=sum(diag(tab))/sum(tab)
+  sens=tab[2,2]/colSums(tab)[2]
+  spec=tab[1,1]/colSums(tab)[1]
+  ppv=tab[2,2]/rowSums(tab)[2]
+  f1=2*(sens*ppv)/(sens+ppv)
+
+  if(is.numeric(truth)==FALSE &amp; is.logical(truth)==FALSE){
+    truth&lt;-as.numeric(truth)-1}
+  
+  #CALCULATE EXACT AUC
+  ord&lt;-order(probs, decreasing=TRUE)
+  probs &lt;- probs[ord]; truth &lt;- truth[ord]
+  
+  TPR=cumsum(truth)/max(1,sum(truth)) 
+  FPR=cumsum(!truth)/max(1,sum(!truth))
+  
+  dup&lt;-c(probs[-1]&gt;=probs[-length(probs)], FALSE)
+  TPR&lt;-c(0,TPR[!dup],1); FPR&lt;-c(0,FPR[!dup],1)
+  
+  n &lt;- length(TPR)
+  auc&lt;- sum( ((TPR[-1]+TPR[-n])/2) * (FPR[-1]-FPR[-n]) )
+
+  data.frame(acc,sens,spec,ppv,f1,auc)
+}
+
+
+confusion_matrix&lt;-function(probs,truth,thresh = 0.5){
+  tab&lt;-table(factor(probs&gt;thresh,levels=c(&quot;FALSE&quot;,&quot;TRUE&quot;)),truth)
+  print(tab)}</code></pre>
+</div>
+<div id="logistic-regression-model" class="section level2">
+<h2>Logistic Regression Model</h2>
+<div id="logodds-of-no-factual-content--3.14202-0.37180reaction_count_c-1.30412right-1.53430left" class="section level3">
+<h3>log(odds of <code>no factual content</code>) = -3.14202 + 0.37180(reaction_count_c) + 1.30412(<code>right</code>) + 1.53430(<code>left</code>)</h3>
+<p><em>Controlling for reaction count, Right-leaning vs non-Right leaning posts are significantly different (p = 5.886e-11). The odds of containing “no factual content” for right-leaning sources are e^1.30412 = 3.684445 the odds for posts from non-right leaning sources. Controlling for reaction count, Left-leaning vs non-Left leaning posts are significantly different (p = 2.054e-09). The odds of containing “no factual content” for left-leaning sources are e^1.53430 = 4.638078 the odds for posts from non-left leaning sources. Controlling for “category”, for every 1 unit increase in in reaction_count_c, the odds of containing “no factual content” change by a factor of e^0.37180 = 1.450343.</em></p>
+<p><em>The model’s accuracy, sensitivity, specificity, and precision are the following: 0.8797468, 0.387234, 0.9382903,and 0.42723, respectively. The model’s AUC is 0.729388.</em></p>
+<p><em>The AUC of the ROC plot is 0.72 - a “Fair” score.</em></p>
+<pre class="r"><code>fit3&lt;-glm(`no factual content`~reaction_count_c+`right`+`left`, data=fbrawdata_3, family=&quot;binomial&quot;)
+coeftest(fit3)</code></pre>
+<pre><code>## 
+## z test of coefficients:
+## 
+##                  Estimate Std. Error  z value  Pr(&gt;|z|)    
+## (Intercept)      -3.14202    0.16210 -19.3834 &lt; 2.2e-16 ***
+## reaction_count_c  0.37180    0.11048   3.3652 0.0007648 ***
+## right             1.30412    0.19920   6.5466 5.886e-11 ***
+## left              1.53430    0.25599   5.9935 2.054e-09 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+<pre class="r"><code>probs &lt;- predict(fit3, type = &quot;response&quot;)
+
+temp &lt;- NULL
+for (i in 1:500){
+  temp &lt;- rbind(temp,(data.frame(cutoff = i/500,f1 = class_diag(probs,fbrawdata_3$`no factual content`,i/500)$f1)))
+}
+temp %&gt;% ggplot(aes(cutoff,f1)) + geom_path()</code></pre>
+<pre><code>## Warning: Removed 318 row(s) containing missing values (geom_path).</code></pre>
+<p><img src="/Project2_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
+<pre class="r"><code>best_cutoff &lt;- (temp %&gt;% arrange(desc(f1)))[1,] %&gt;% pull(cutoff)
+
+class_diag(probs,fbrawdata_3$`no factual content`,best_cutoff)</code></pre>
+<pre><code>##         acc     sens      spec     ppv      f1      auc
+## 1 0.8797468 0.387234 0.9382903 0.42723 0.40625 0.729388</code></pre>
+<pre class="r"><code>confusion_matrix(probs,fbrawdata_3$`no factual content`,best_cutoff)</code></pre>
+<pre><code>##        truth
+##            0    1
+##   FALSE 1855  144
+##   TRUE   122   91</code></pre>
+<pre class="r"><code># density plot of the log-odds 
+data.frame(predict = predict(fit3, type = &quot;link&quot;),nfc = fbrawdata_3$`no factual content`) %&gt;% ggplot(aes(predict)) + geom_density(aes(fill = as.factor(nfc)), alpha = 0.5)</code></pre>
+<p><img src="/Project2_files/figure-html/unnamed-chunk-10-2.png" width="672" /></p>
+<pre class="r"><code>ROCplot&lt;-ggplot(fbrawdata_3)+geom_roc(aes(d=`no factual content`,m=probs), n.cuts=0)
+ROCplot</code></pre>
+<p><img src="/Project2_files/figure-html/unnamed-chunk-10-3.png" width="672" /></p>
+<pre class="r"><code>#reaction
+exp( 0.37180)</code></pre>
+<pre><code>## [1] 1.450343</code></pre>
+<pre class="r"><code>#left
+exp(1.53430)</code></pre>
+<pre><code>## [1] 4.638078</code></pre>
+<pre class="r"><code>#right
+exp( 1.30412 )</code></pre>
+<pre><code>## [1] 3.684445</code></pre>
+</div>
+</div>
+<div id="logistic-regression-predicting-no-factual-content-from-all-relevant-variables" class="section level2">
+<h2>Logistic Regression Predicting “no factual content” from all Relevant Variables</h2>
+<p><em>The accuracy, sensitivity, specificity, precision, and AUC for the model are: 0.8797468, 0.4085106, 0.9357613, 0.4304933, and 0.7370721, respectively. The AUC indiciates a “Fair” model.</em></p>
+<pre class="r"><code>fbrawdata_4 &lt;-  fbrawdata_3 %&gt;% 
+  select(-post_id, -`mostly false`, -`mostly true`, -`mixture of true and false`,-Rating, -mainstream, -left,-right,-Page) %&gt;% rename(y = `no factual content`) %&gt;% select(-contains(&quot;count_c&quot;))
+fit4&lt;-glm(y~., data=(fbrawdata_4 %&gt;% na.omit), family=&quot;binomial&quot;)
+coeftest(fit4)</code></pre>
+<pre><code>## 
+## z test of coefficients:
+## 
+##                       Estimate  Std. Error  z value  Pr(&gt;|z|)    
+## (Intercept)        -1.9174e+00  1.7279e-01 -11.0966 &lt; 2.2e-16 ***
+## Categorymainstream -1.3634e+00  2.3214e-01  -5.8732 4.274e-09 ***
+## Categoryright       1.5242e-02  2.0065e-01   0.0760    0.9395    
+## share_count        -3.6898e-06  7.2637e-06  -0.5080    0.6115    
+## reaction_count      3.7839e-05  7.4718e-06   5.0642 4.102e-07 ***
+## comment_count      -6.6740e-05  4.2492e-05  -1.5706    0.1163    
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
+<pre class="r"><code>probs &lt;- predict(fit4, type = &quot;response&quot;)
+
+temp &lt;- NULL
+for (i in 1:500){
+  temp &lt;- rbind(temp,(data.frame(cutoff = i/500,f1 = class_diag(probs,fbrawdata_3$`no factual content`,i/500)$f1)))
+}
+temp %&gt;% ggplot(aes(cutoff,f1)) + geom_path()</code></pre>
+<pre><code>## Warning: Removed 2 row(s) containing missing values (geom_path).</code></pre>
+<p><img src="/Project2_files/figure-html/unnamed-chunk-11-1.png" width="672" /></p>
+<pre class="r"><code>best_cutoff &lt;- (temp %&gt;% arrange(desc(f1)))[1,] %&gt;% pull(cutoff)
+class_diag(probs,fbrawdata_4$y,best_cutoff)</code></pre>
+<pre><code>##         acc      sens      spec       ppv        f1       auc
+## 1 0.8788427 0.4085106 0.9347496 0.4266667 0.4173913 0.7370721</code></pre>
+<pre class="r"><code>confusion_matrix(probs,fbrawdata_4$y,best_cutoff)</code></pre>
+<pre><code>##        truth
+##            0    1
+##   FALSE 1848  139
+##   TRUE   129   96</code></pre>
+<pre class="r"><code># density plot of the log-odds 
+data.frame(predict = predict(fit4, type = &quot;link&quot;),nfc = fbrawdata_4$y) %&gt;% ggplot(aes(predict)) + geom_density(aes(fill = as.factor(nfc)), alpha = 0.5)</code></pre>
+<p><img src="/Project2_files/figure-html/unnamed-chunk-11-2.png" width="672" /></p>
+<pre class="r"><code>ROCplot&lt;-ggplot(fbrawdata_4)+geom_roc(aes(d=y,m=probs), n.cuts=0)
+ROCplot</code></pre>
+<p><img src="/Project2_files/figure-html/unnamed-chunk-11-3.png" width="672" />
+## 10-fold Cross-Validation with the same Logistic Regression Model</p>
+<p><em>The accuracy, sensitivity, specificity, precision, and AUC for the model are: 0.895575, 0.1599529, 0.9823403, 0.5080952, and 0.8212472, respectively. The 10-fold cross-validated model’s accuracy improved slightly, but its sensitivity decreased. This means the model correctly classified more cases, it identified less true-positives (non-factual posts). The model’s specificity improved, meaning it correctly identified more posts as containing “some level of factual content.” The model’s overall AUC improved additionally - proving the cross-validated model performs slightly better than the non-CV model.</em></p>
+<pre class="r"><code>set.seed(1234)
+k=10
+
+data&lt;-fbrawdata_4[sample(nrow(fbrawdata_4)),] 
+folds&lt;-cut(seq(1:nrow(fbrawdata_4)),breaks=k,labels=F)
+
+diags&lt;-NULL 
+for(i in 1:k){
+train&lt;-data[folds!=i,] 
+test&lt;-data[folds==i,] 
+truth&lt;-test$y
+fit&lt;-glm(y~(.)^2,data=train,family=&quot;binomial&quot;) 
+probs&lt;-predict(fit,newdata = test, type=&quot;response&quot;)
+diags&lt;-rbind(diags,class_diag(probs,truth)) }</code></pre>
+<pre><code>## Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
+
+## Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
+
+## Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
+
+## Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
+
+## Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
+
+## Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
+
+## Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
+
+## Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
+
+## Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred</code></pre>
+<pre class="r"><code>summarize_all(diags,mean) </code></pre>
+<pre><code>##         acc      sens      spec       ppv  f1       auc
+## 1 0.8987383 0.1425138 0.9883263 0.5618254 NaN 0.7917441</code></pre>
+</div>
+<div id="lasso" class="section level2">
+<h2>LASSO</h2>
+<p><em>After perfoming LASSO, the category and reaction_count variables are retained.</em></p>
+<pre class="r"><code>y&lt;-as.matrix(fbrawdata_4$y) #grab response
+x&lt;-model.matrix(y~.,data=fbrawdata_4)[,-1] #grab predictors
+head(x)</code></pre>
+<pre><code>##   Categorymainstream Categoryright share_count reaction_count comment_count
+## 1                  1             0           1             33            34
+## 2                  1             0          34             63            27
+## 3                  1             0          35            170            86
+## 4                  1             0         568           3188          2815
+## 5                  1             0          23             28            21
+## 6                  1             0          46            409           105</code></pre>
+<pre class="r"><code>x&lt;-scale(x)
+
+cv &lt;- cv.glmnet(x,y, family=&quot;binomial&quot;)
+{plot(cv$glmnet.fit, &quot;lambda&quot;, label=TRUE); abline(v = log(cv$lambda.1se))}</code></pre>
+<p><img src="/Project2_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+<pre class="r"><code>cv&lt;-cv.glmnet(x,y,family=&quot;binomial&quot;) 
+lasso&lt;-glmnet(x,y,family=&quot;binomial&quot;,lambda=cv$lambda.1se) 
+coef(lasso)</code></pre>
+<pre><code>## 6 x 1 sparse Matrix of class &quot;dgCMatrix&quot;
+##                            s0
+## (Intercept)        -2.1933482
+## Categorymainstream -0.2613754
+## Categoryright       .        
+## share_count         .        
+## reaction_count      0.2732928
+## comment_count       .</code></pre>
+</div>
+<div id="performing-10-fold-cv-using-lasso-selected-variables" class="section level2">
+<h2>Performing 10-fold CV Using LASSO-Selected Variables</h2>
+<p><em>After performing the 10-fold CV using only the lasso-selected variables, the model’s out-of-sample AUC is 0.7297029. The 10-fold CV lasso-variable model performed poorer when compared to the 10-fold CV model (AUC = 0.8212472), but approximately as well as the original logistic regression model using all the variables (AUC = 0.7370721).</em></p>
+<pre class="r"><code>## CV on lasso variables
+set.seed(1234)
+k=10
+
+data &lt;- fbrawdata_4 %&gt;% sample_frac #put rows of dataset in random order 
+folds &lt;- ntile(1:nrow(data),n=10) #create fold labels
+
+diags&lt;-NULL 
+for(i in 1:k){
+train &lt;- data[folds!=i,] #create training set (all but fold i) 
+test &lt;- data[folds==i,] #create test set (just fold i)
+truth &lt;- test$y #save truth labels from fold i
+fit &lt;- glm(y~ reaction_count + Category, data=train, family=&quot;binomial&quot;)
+probs &lt;- predict(fit, newdata=test, type=&quot;response&quot;) 
+diags&lt;-rbind(diags,class_diag(probs,truth))
+} 
+diags%&gt;%summarize_all(mean)</code></pre>
+<pre><code>##         acc       sens      spec   ppv  f1       auc
+## 1 0.8960254 0.05819308 0.9949292 0.625 NaN 0.7297029</code></pre>
+</div>
+</div>

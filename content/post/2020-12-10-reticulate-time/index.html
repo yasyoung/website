@@ -1,0 +1,34 @@
+---
+title: "Gilmore Girls and Reticulate"
+author: "Yasmine Young"
+date: '2020-12-10'
+description: ''
+slug: reticulate-time
+tags: []
+categories: []
+---
+
+<link href="index_files/anchor-sections/anchor-sections.css" rel="stylesheet" />
+<script src="index_files/anchor-sections/anchor-sections.js"></script>
+
+
+<div class="figure">
+<img src="/img/yasminexjess.png" alt="Lets be honest, Jess was the best option out of the three." />
+<p class="caption">Lets be honest, Jess was the best option out of the three.</p>
+</div>
+<pre class="r"><code>library(reticulate)</code></pre>
+<pre><code>## Warning: package &#39;reticulate&#39; was built under R version 3.6.2</code></pre>
+<pre class="python"><code>string = &quot;Why did they completely ruin Rory&#39;s character after Season 3? Season 4 was to her detriment. It became only about &#39;Who is Rory going to pick?&#39; &#39;Dean, Jess, Dean again, Jess again, Logan, Dean, Logan, no Logan, Logan again, Jess&#39;. My opinion? Should have been Jess all along.&quot;</code></pre>
+<pre class="r"><code>library(stringr)
+regmatches(py$string,gregexpr(&quot;..&quot;, py$string, perl=TRUE))</code></pre>
+<pre><code>## [[1]]
+##   [1] &quot;Wh&quot; &quot;y &quot; &quot;di&quot; &quot;d &quot; &quot;th&quot; &quot;ey&quot; &quot; c&quot; &quot;om&quot; &quot;pl&quot; &quot;et&quot; &quot;el&quot; &quot;y &quot; &quot;ru&quot; &quot;in&quot; &quot; R&quot;
+##  [16] &quot;or&quot; &quot;y&#39;&quot; &quot;s &quot; &quot;ch&quot; &quot;ar&quot; &quot;ac&quot; &quot;te&quot; &quot;r &quot; &quot;af&quot; &quot;te&quot; &quot;r &quot; &quot;Se&quot; &quot;as&quot; &quot;on&quot; &quot; 3&quot;
+##  [31] &quot;? &quot; &quot;Se&quot; &quot;as&quot; &quot;on&quot; &quot; 4&quot; &quot; w&quot; &quot;as&quot; &quot; t&quot; &quot;o &quot; &quot;he&quot; &quot;r &quot; &quot;de&quot; &quot;tr&quot; &quot;im&quot; &quot;en&quot;
+##  [46] &quot;t.&quot; &quot; I&quot; &quot;t &quot; &quot;be&quot; &quot;ca&quot; &quot;me&quot; &quot; o&quot; &quot;nl&quot; &quot;y &quot; &quot;ab&quot; &quot;ou&quot; &quot;t &quot; &quot;&#39;W&quot; &quot;ho&quot; &quot; i&quot;
+##  [61] &quot;s &quot; &quot;Ro&quot; &quot;ry&quot; &quot; g&quot; &quot;oi&quot; &quot;ng&quot; &quot; t&quot; &quot;o &quot; &quot;pi&quot; &quot;ck&quot; &quot;?&#39;&quot; &quot; &#39;&quot; &quot;De&quot; &quot;an&quot; &quot;, &quot;
+##  [76] &quot;Je&quot; &quot;ss&quot; &quot;, &quot; &quot;De&quot; &quot;an&quot; &quot; a&quot; &quot;ga&quot; &quot;in&quot; &quot;, &quot; &quot;Je&quot; &quot;ss&quot; &quot; a&quot; &quot;ga&quot; &quot;in&quot; &quot;, &quot;
+##  [91] &quot;Lo&quot; &quot;ga&quot; &quot;n,&quot; &quot; D&quot; &quot;ea&quot; &quot;n,&quot; &quot; L&quot; &quot;og&quot; &quot;an&quot; &quot;, &quot; &quot;no&quot; &quot; L&quot; &quot;og&quot; &quot;an&quot; &quot;, &quot;
+## [106] &quot;Lo&quot; &quot;ga&quot; &quot;n &quot; &quot;ag&quot; &quot;ai&quot; &quot;n,&quot; &quot; J&quot; &quot;es&quot; &quot;s&#39;&quot; &quot;. &quot; &quot;My&quot; &quot; o&quot; &quot;pi&quot; &quot;ni&quot; &quot;on&quot;
+## [121] &quot;? &quot; &quot;Sh&quot; &quot;ou&quot; &quot;ld&quot; &quot; h&quot; &quot;av&quot; &quot;e &quot; &quot;be&quot; &quot;en&quot; &quot; J&quot; &quot;es&quot; &quot;s &quot; &quot;al&quot; &quot;l &quot; &quot;al&quot;
+## [136] &quot;on&quot; &quot;g.&quot;</code></pre>
