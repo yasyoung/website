@@ -1,5 +1,6 @@
 ---
 title: "SDS348 Project 1"
+date: '2020-10-18'
 output:
   html_document: default
   word_document: default

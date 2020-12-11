@@ -20,11 +20,11 @@ theme = "hugo-sustain"
   custom_js  = []
 
 [params.social]
-  Github        = "https://github.com/yasyoung"
+  Github        = "yasyoung"
   Email         = "yasyoung@utexas.edu"
-  Twitter       = "https://twitter.com/yesmibe"
-  LinkedIn      = "https://www.linkedin.com/in/yasyoung/"
-  Instagram     = "https://www.instagram.com/yasmineyoungin/"
+  Twitter       = "yesmibe"
+  LinkedIn      = "yasyoung"
+  Instagram     = "yasmineyoungin"
 #  Stackoverflow = "username"
 #  Medium        = "username"
 #  Telegram      = "username"
@@ -40,8 +40,8 @@ theme = "hugo-sustain"
   identifier = "projects"
   weight = 200
   url = "/projects/"
-[[menu.main]]
-  name = "Curriculum Vitae"
-  identifier = "resume"
-  weight = 300
-  url = "resume.pdf"
+#[[menu.main]]
+#  name = "Curriculum Vitae"
+#  identifier = "resume"
+#  weight = 300
+#  url = "resume.pdf"
